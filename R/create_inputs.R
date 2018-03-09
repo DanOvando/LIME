@@ -2,8 +2,7 @@
 #'
 #' \code{create_inputs} Gets list of parameter inputs into the proper format
 #'
-#' @param param parameter name to adjust (sensitivity analysis), default=FALSE
-#' @param val value of parameter name to adjust (sensitivity analysis), default=FALSE
+#' @author M.B. Rudd
 #' @param lh tagged list of life history/starting value information
 #' @param input_data tagged list of data inputs. Required: years = vector of years (true years or indices); LF = matrix of length frequency (years along rows and length bins along columns), obs_per_year = vector of sample size per year. Optional: I_t = vector of abundance index, named with years; C_t = vector of catch, named with years. 
 
@@ -34,7 +33,7 @@ create_inputs <- function(lh, input_data){
                 dat_input$LF <- as.matrix(LF_new)
             }
             if(obs_lb >= max(dat_input$highs)){
-                max_lb <- max(from=seq(dat_input$binwidth, to=ncol(dat_input$LF), by=dat_input$binwidth))
+                max_lb <- max(from=seq(dat_input$binwidth, to=ncol(dat_input$LF)*dat_input$binwidth, by=dat_input$binwidth))
                 test_lb <- max(seq(from=(obs_lb + dat_input$binwidth), length=5, by=dat_input$binwidth))
                 change_lb <- min(test_lb, max_lb)
                 if(is.null(colnames(dat_input$LF))==FALSE) index_lb <- which(colnames(dat_input$LF)==change_lb)

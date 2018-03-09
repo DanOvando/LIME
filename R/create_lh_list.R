@@ -2,6 +2,7 @@
 #'
 #' \code{create_lh_list} Creates list of life history information
 #'
+#' @author M.B. Rudd
 #' @param vbk von Bertalanffy k Brody growth coefficient
 #' @param linf von Bertalanffy Linf asymptotic length
 #' @param lwa length-weight scaling parameter
@@ -36,10 +37,12 @@
 #' @param rho first-order autocorrelation in recruitment residuals parameter, default=0 (recruitment not autocorrelated)
 #' @param theta dirichlet-multinomial parameter related to effective sample size. default to 10, will not be used if length frequency distribution LFdist is set to multinomial (0). Only used if distribution is dirichlet-multinomial (LFdist=1)
 #' @param nseasons specify number of sub-time periods per year; default=1 (instantaneous sampling)
+#' @importFrom stats pnorm
+#' 
 #' 
 #' @return List, a tagged list of life history traits
 #' @export
-create_lh_list <- function(vbk, linf, lwa, lwb, S50, M50, S95=NULL, M95=NULL, Sslope=NULL, Mslope=NULL, selex_input="length", maturity_input="length", selex_type="logistic", dome_sd=NULL, binwidth=1, t0=-0.01, CVlen=0.1, SigmaC=0.2, SigmaI=0.2, SigmaR=0.6, SigmaF=0.3, R0=1,  h=1, qcoef=1e-5, M=NULL, AgeMax=NULL, F1=0.2, Fequil=0.2, Frate=0.2, Fmax=0.7, start_ages=0, rho=0, theta=10, nseasons=1){
+create_lh_list <- function(vbk, linf, lwa, lwb, S50, M50, S95=NULL, M95=NULL, Sslope=NULL, Mslope=NULL, selex_input="length", maturity_input="length", selex_type="logistic", dome_sd=NULL, binwidth=1, t0=-0.01, CVlen=0.1, SigmaC=0.001, SigmaI=0.001, SigmaR=0.737, SigmaF=0.2, R0=1,  h=1, qcoef=1e-5, M=NULL, AgeMax=NULL, F1=0.2, Fequil=0.5, Frate=0.2, Fmax=0.7, start_ages=0, rho=0, theta=10, nseasons=1){
             
     ## mortality
     if(is.null(M)) M <- 1.5*vbk  ## based on vbk if not specified 

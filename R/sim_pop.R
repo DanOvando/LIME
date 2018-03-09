@@ -2,19 +2,21 @@
 #'
 #' \code{sim_pop} Age-converted-to-length-based operating model specifying true population dynamics
 #'
+#' @author M.B. Rudd
 #' @param lh list of life history information, from create_lh_list
 #' @param Nyears number of years to simulate
 #' @param pool if nseasons (in life history list) is greater than one, pool the generated data into annual time steps, or leave at the season-level? FALSE will generate shorter time step life history info, mean length
-#' @param Fdynamics Specify name of pattern of fishing mortality dynamics, Constant, Endogenous, Ramp, Increasing, or None
+#' @param Fdynamics Specify name of pattern of fishing mortality dynamics, Constant, Endogenous, Ramp, Increasing, or None. Input number to project forward using a specific F.
 #' @param Rdynamics Specify name of pattern of recruitment dynamics, Constant, Pulsed, Pulsed_up, or BH
 #' @param Nyears_comp number of years of length composition data
-#' @param comp_sample vector with sample sizes of length composition data annually
+#' @param comp_sample sample size of length composition data annually
 #' @param init_depl initial depletion; if FALSE, will use F1 from lh list
 #' @param nburn number of years of burn-in for operating model
 #' @param seed set seed for generating stochastic time series
-#' @param modname save model name for true dynamics in named list output
 #' @param mismatch if TRUE, catch and index overlap with length comp only 1 year
 #' @param sample_type a character vector specifying if the length comps are sampled from the 'catch' (default) or from the population
+#' @param mgt_type removals based on F (default) or catch
+#' @importFrom stats rnorm
 #' @return named list of attributes of true population/data
 #' @export
 sim_pop <-
@@ -28,9 +30,9 @@ sim_pop <-
            init_depl,
            nburn,
            seed,
-           modname,
            mismatch,
-           sample_type = 'catch') {
+           sample_type = 'catch',
+           mgt_type = 'F') {
     ## SB_t = spawning biomass over time
     ## F_t = fishing mortality over time
     ## Cn_at = number of individuals that die from fishing mortality
@@ -136,7 +138,7 @@ sim_pop <-
             W_a = W_a,
             M = M,
             S_a = S_a,
-            ref = 0.2
+            ref = 0.05
           )$root,
           error = function(e)
             NA
@@ -168,6 +170,12 @@ sim_pop <-
         F_t <- rep(0, tyears)
       if (Fdynamics == "4010")
         F_t <- rep(NA, tyears)
+      if(is.numeric(Fdynamics) & mgt_type == "F") 
+        F_t <- rep(Fdynamics, tyears) * exp(FishDev)
+      if(is.numeric(Fdynamics) & mgt_type == "catch"){
+        C_t <- rep(Fdynamics, tyears) * exp(CatchDev)
+        F_t[1] <- F1
+      }
 
       if (Rdynamics == "Pulsed")
         Rpulse_t <- c(
@@ -242,8 +250,15 @@ sim_pop <-
       VB_t[1] <- sum(N_at[, 1] * W_a * S_a)
       TB_t[1] <- sum(N_at[, 1] * W_a)
       SB_t[1] <- sum(N_at[, 1] * W_a * Mat_a)
+
+      if(is.numeric(Fdynamics) & mgt_type=="catch"){
+        F_t[1] <- max(0.01, getFt(ct=C_t[1], m=M, sa=S_a, wa=W_a, na=N_at[,1]))
+        F_t[1] <- min(c(Fmax, F_t[1]), na.rm=TRUE)
+      }
+
       Cn_at[, 1] <-
         N_at[, 1] * (1 - exp(-M - F_t[1] * S_a)) * (F_t[1] * S_a) / (M + F_t[1] * S_a)
+      Z_t[1] <- mean(M + F_t[1] * S_a, na.rm = T)
 
       ##########################
       ## Projection
@@ -259,7 +274,7 @@ sim_pop <-
       #             if(D_t[t-1] >= 0.40) F_t[t] <- F40 * exp(FishDev[t])
       #             if(D_t[t-1] >= 0.10 & D_t[t-1] < 0.40) F_t[t] <- ((F40/0.3)*D_t[t-1] - ((0.10*F40)/0.30)) * exp(FishDev[t])
       # }
-
+      ## static SPR
       for (y in 2:tyears) {
         ## fishing effort and recruitment, not dependent on age structure
         if (Fdynamics == "Endogenous") {
@@ -267,7 +282,7 @@ sim_pop <-
             F_t[y] <- Finit
           if (y > nburn)
             F_t[y] <-
-              F_t[y - 1] * (SB_t[y - 1] / (Fequil * SB0)) ^ Frate * exp(FishDev[y])
+              F_t[y - 1] * (SB_t[y - 1] / (Fequil * SB0/2)) ^ Frate * exp(FishDev[y])
         }
         if (Fdynamics == "4010") {
           if (y <= nburn)
@@ -292,6 +307,7 @@ sim_pop <-
                                                                                   h_use - 1))) / nseasons * exp(RecDev[y])
         }
 
+
         ## age-structured dynamics
         for (a in 1:length(L_a)) {
           if (a == 1) {
@@ -309,11 +325,17 @@ sim_pop <-
             N_at0[a, y] <-
               (N_at0[a - 1, y - 1] * exp(-M)) + (N_at0[a, y - 1] * exp(-M))
           }
+        }
 
           ## spawning biomass
           SB_t[y] <- sum((N_at[, y] * W_a * Mat_a))
           VB_t[y] <- sum(N_at[, y] * W_a * S_a)
           TB_t[y] <- sum(N_at[, y] * W_a)
+
+          if(is.numeric(Fdynamics) & mgt_type=="catch"){
+            F_t[y] <- max(0.01,getFt(ct=C_t[y], m=M, sa=S_a, wa=W_a, na=N_at[,y]))
+            # F_t[y] <- min(c(Fmax, F_t[y]), na.rm=TRUE)
+          }
 
           ## catch
           Cn_at[, y] <-
@@ -321,13 +343,10 @@ sim_pop <-
 
           Z_t[y] <- mean(M + F_t[y] * S_a, na.rm = T)
 
-          D_t <- SB_t / SB0
-
-
-        }
+          D_t[y] <- SB_t[y] / SB0
       }
 
-      ## static SPR
+
       SPR_t <-
         sapply(1:length(F_t), function(x)
           calc_ref(
@@ -349,8 +368,7 @@ sim_pop <-
         (1 - P ^ (x / (M / vbk))) * linf # length at relative age
       rLens <- EL / linf # relative length
       SPR_alt <-
-        sum(Mat_a * rowSums(N_at) * rLens ^ 3) / sum(Mat_a * rowSums(N_at0) * rLens ^
-                                                       3)
+        sum(Mat_a * rowSums(N_at) * rLens ^ 3) / sum(Mat_a * rowSums(N_at0) * rLens ^ 3)
 
       Cn_t <- colSums(Cn_at)
       Cw_t <- colSums(Cn_at * W_a)
@@ -361,8 +379,8 @@ sim_pop <-
       VB_t <- VB_t[which(1:tyears %% nseasons == 0)]
       SPR_t <- SPR_t[which(1:tyears %% nseasons == 0)]
 
-      I_t <- qcoef * TB_t #* exp(IndexDev - (SigmaI^2)/2)
-      C_t <- sapply(1:tyears_only, function(x) {
+      I_t <- qcoef * TB_t * exp(IndexDev)
+      Cn_t <- sapply(1:tyears_only, function(x) {
         if (nseasons == 1)
           time_index <- x
         if (nseasons > 1)
@@ -394,6 +412,7 @@ sim_pop <-
 
       ## age to length comp
       obs_per_year <- rep(comp_sample / nseasons, tyears)
+
       LFinfo <-
         AgeToLengthComp(
           lh = lh,
@@ -483,9 +502,9 @@ sim_pop <-
       }
 
       I_tout <- I_t[-c(1:nburn_real)]
-      C_tout <- C_t[-c(1:nburn_real)]
+      Cn_tout <- Cn_t[-c(1:nburn_real)]
       Cw_tout <- Cw_t[-c(1:nburn_real)]
-      names(C_tout) <-
+      names(Cn_tout) <-
         names(Cw_tout) <- names(I_tout) <- 1:Nyears_real
       R_tout <- R_t[-c(1:nburn_real)]
       N_tout <- N_t[-c(1:nburn_real)]
@@ -495,6 +514,7 @@ sim_pop <-
       D_tout <- D_t[-c(1:nburn_real)]
       F_tout <- F_t[-c(1:nburn_real)]
       SPR_tout <- SPR_t[-c(1:nburn_real)]
+      Z_tout <- Z_t[-c(1:nburn_real)]
 
       LFout <- LFout[LFindex,]
       LF0out <- LF0out[LFindex,]
@@ -518,9 +538,9 @@ sim_pop <-
 
       ## outputs
       lh$I_t <- I_tout[myrs]
-      lh$C_t <- C_tout[myrs]
+      lh$Cn_t <- Cn_tout[myrs]
       lh$Cw_t <- Cw_tout[myrs]
-      lh$DataScenario <- modname
+      if(is.numeric(Fdynamics) & mgt_type=="catch") lh$C_t <- C_t
       lh$LF <- LFout
       lh$LF0 <- LF0out
       lh$R_t <- R_tout
@@ -539,7 +559,7 @@ sim_pop <-
       lh$VB_t <- VB_tout
       lh$TB_t <- TB_tout
       lh$nlbins <- length(mids)
-      lh$Z_t <- Z_t
+      lh$Z_t <- Z_tout
       if (pool == TRUE) {
         lh$Nyears <- Nyears_real
         lh$years <- 1:Nyears_real

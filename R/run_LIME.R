@@ -2,11 +2,12 @@
 #'
 #' \code{run_LIME} run length-based integrated mixed-effects model with generated data
 #'
+#' @author M.B. Rudd
 #' @param modpath model directory
 #' @param lh list of life history information, from create_lh_list
 #' @param input_data tagged list of data inputs. Required: years = vector of years (true years or indices); LF = matrix of length frequency (years along rows and length bins along columns), obs_per_year = vector of sample size per year. Optional: I_t = vector of abundance index, named with years; C_t = vector of catch, named with years. 
 #' @param est_sigma list of variance parameters to estimate, must match parameter names: log_sigma_R, log_sigma_C, log_sigma_I, log_CV_L, log_sigma_F
-#' @param data_avail types of data included, must at least include LCX where X is the number of years of length composition data. May also include Catch or Index separated by underscore. For example, LC10, Catch_LC1, Index_Catch_LC20.
+#' @param data_avail types of data included, must at least include LC as length composition data is the minimum data input. May also include Catch or Index separated by underscore. For example, LC, Catch_LC, Index_Catch_LC.
 #' @param itervec number of datasets to generate in a simulation study. default=NULL for real stock assessment application. 
 #' @param rewrite default=TRUE; if results already exist in the directory, should we rewrite them? TRUE or FALSE
 #' @param simulation is this a simulation? default TRUE, FALSE means you are using real data (can set itervec=NULL)
@@ -17,21 +18,26 @@
 #' @param fix_param_t default=FALSE - fix certain parameters in time series (e.g. fishing mortality, recruitment deviations) list with first item the name of the parameter and second item the numbers in the time series to be fixed. 
 #' @param C_opt default=0, if no catch data is available, set to 0. If catch is in numbers, set to 1. if catch is in biomass, set to 2. 
 #' @param F_up upper bound of fishing mortality estimate; default=5
+#' @param S50_up upper bound of length at 50 percent selectivity; default=NULL
 #' @param LFdist likelihood distribution for length composition data, default=0 for multinomial, alternate=1 for dirichlet-multinomial
 #' @param derive_quants default=FALSE (takes longer to run), can set to TRUE to output additional derived quantities.
-#' @param S_l_input default=-1, use 1-parameter logistic selectivity function; alternatively can input fixed selectivity-at-length
-#' @param theta_type if 0, estimate annual theta; if 1, estimate single theta for all years of length comp
+#' @param S_l_input default=-1, use 1 or 2--parameter logistic selectivity function; alternatively can input fixed selectivity-at-length
+#' @param theta_type default=1, estimate single theta for all years of length comp; if 0, estimate annual theta
 #' @param randomR default = TRUE, estimate recruitment as a random effect; if FALSE, turn off random effect on recruitment (do not derive deviations)
 #' @param Fpen penalty on fishing mortality; 0=OFF, 1=ON, default=1
 #' @param SigRpen penalty on sigmaR; 0=OFF, 1=ON, default=1
-
+#' @param newtonsteps number of extra newton steps to take after optimization; FALSE to turn off
+#' @importFrom TMB MakeADFun sdreport
+#' @importFrom TMBhelper Optimize
+#' @importFrom utils write.csv
+#' 
 
 #' @useDynLib LIME
 
 #' @return prints how many iterations were run in model directory
 #' 
 #' @export
-run_LIME <- function(modpath, lh, input_data, est_sigma, data_avail, itervec=NULL, rewrite=TRUE, simulation=TRUE, param_adjust=FALSE, val_adjust=FALSE, f_true=FALSE, fix_param=FALSE, fix_param_t=FALSE, C_opt=0, F_up=10, LFdist=0, derive_quants=FALSE, S_l_input=-1, theta_type=1, randomR=TRUE, Fpen=1, SigRpen=1){
+run_LIME <- function(modpath, lh, input_data, est_sigma, data_avail, itervec=NULL, rewrite=TRUE, simulation=FALSE, param_adjust=FALSE, val_adjust=FALSE, f_true=FALSE, fix_param=FALSE, fix_param_t=FALSE, C_opt=0, F_up=10, S50_up=NULL, LFdist=1, derive_quants=FALSE, S_l_input=-1, theta_type=1, randomR=TRUE, Fpen=1, SigRpen=1, newtonsteps=3){
 
       # dyn.load(paste0(cpp_dir, "\\", dynlib("LIME")))
 
@@ -151,7 +157,9 @@ for(iter in 1:length(itervec)){
         Upr = rep(Inf, length(obj$par))
         Upr[match("log_sigma_R",names(obj$par))] = log(2)
         # Upr[match("logS95", names(obj$par))] = log(inits$AgeMax)
-        Upr[match("logS50", names(obj$par))] = log(max(inits$highs))
+        if(is.null(S50_up)) Upr[match("logS50", names(obj$par))] = log(inits$linf)
+        if(is.null(S50_up)==FALSE) Upr[match("logS50", names(obj$par))] <- log(S50_up)
+        Upr[match("logSdelta", names(obj$par))] <- log(inits$linf)
         Upr[which(names(obj$par)=="log_F_t_input")] = log(F_up)
         Upr[match("log_sigma_F", names(obj$par))] <- log(2)
         Lwr <- rep(-Inf, length(obj$par))
@@ -164,7 +172,8 @@ for(iter in 1:length(itervec)){
 
         ## Run optimizer
         # opt <- tryCatch( nlminb( start=obj$par, objective=obj$fn, gradient=obj$gr, upper=Upr, lower=Lwr, control=list(trace=1, eval.max=1e4, iter.max=1e4, rel.tol=1e-10) ), error=function(e) NA)    
-        opt <- tryCatch(TMBhelper::Optimize(obj=obj, upper=Upr, lower=Lwr, newtonsteps=3, getsd=FALSE), error=function(e) NA)
+        if(is.numeric(newtonsteps)) opt <- tryCatch(TMBhelper::Optimize(obj=obj, upper=Upr, lower=Lwr, newtonsteps=newtonsteps, getsd=FALSE), error=function(e) NA)
+        if(is.numeric(newtonsteps)==FALSE) opt <- tryCatch(TMBhelper::Optimize(obj=obj, upper=Upr, lower=Lwr, loopnum=3, getsd=FALSE), error=function(e) NA)
         jnll <- obj$report()$jnll   
         if(all(is.na(opt))==FALSE & is.na(jnll)==FALSE){
           opt[["final_gradient"]] = obj$gr( opt$par ) 
@@ -180,7 +189,7 @@ for(iter in 1:length(itervec)){
               obj <- MakeADFun(data=TmbList[["Data"]], parameters=ParList,
                             random=TmbList[["Random"]], map=TmbList[["Map"]], 
                             inner.control=list(maxit=1e3), hessian=FALSE, DLL="LIME")
-                opt <-  tryCatch(TMBhelper::Optimize(obj=obj, start= obj$env$last.par.best[-obj$env$random] + rnorm(length(obj$par),0,0.2), upper=Upr, lower=Lwr, newtonsteps=3, getsd=FALSE), error=function(e) NA)
+                opt <-  tryCatch(TMBhelper::Optimize(obj=obj, start= obj$env$last.par.best[-obj$env$random] + rnorm(length(obj$par),0,0.2), upper=Upr, lower=Lwr, newtonsteps=newtonsteps, getsd=FALSE), error=function(e) NA)
                 jnll <- obj$report()$jnll
             }
             if(all(is.na(opt))==FALSE & is.na(jnll)==FALSE){
@@ -199,11 +208,11 @@ for(iter in 1:length(itervec)){
           ## check convergence -- don't let it become NA after it has had a high final gradient
           for(i in 1:5){
             if(all(is.na(opt_save[["final_gradient"]])==FALSE)){
-               if(max(abs(opt_save[["final_gradient"]]))>0.01){
+               if(max(abs(opt_save[["final_gradient"]]))>0.001){
                 obj <- MakeADFun(data=TmbList[["Data"]], parameters=ParList,
                             random=TmbList[["Random"]], map=TmbList[["Map"]], 
                             inner.control=list(maxit=1e3), hessian=FALSE, DLL="LIME")
-                opt <-  tryCatch(TMBhelper::Optimize(obj=obj, start= obj$env$last.par.best[-obj$env$random] + rnorm(length(obj$par),0,0.2), upper=Upr, lower=Lwr, newtonsteps=3, getsd=FALSE), error=function(e) NA)
+                opt <-  tryCatch(TMBhelper::Optimize(obj=obj, start= obj$env$last.par.best[-obj$env$random] + rnorm(length(obj$par),0,0.2), upper=Upr, lower=Lwr, newtonsteps=newtonsteps, getsd=FALSE), error=function(e) NA)
                 jnll <- obj$report()$jnll
               }
             }
@@ -223,7 +232,9 @@ for(iter in 1:length(itervec)){
                     }
                 }
               }
-            if(max(abs(opt_save[["final_gradient"]]))<=0.01) break
+            if(all(is.na(opt_save[["final_gradient"]]))==FALSE){
+              if(max(abs(opt_save[["final_gradient"]]))<=0.001) break
+            }
           }
         }
         if(all(is.na(opt_save))==FALSE)  df <- data.frame(opt_save$final_gradient, names(obj_save$par), opt_save$par, exp(opt_save$par))
@@ -231,13 +242,14 @@ for(iter in 1:length(itervec)){
 
         ## write error message in directory if opt wouldn't run
           if(is.null(modpath)) output$issue <- NULL
-          if(all(is.null(opt_save)) & is.null(modpath)==FALSE) write("NAs final gradient", file.path(iterpath, "NAs_final_gradient.txt"))
-          if(all(is.null(opt_save)) & is.null(modpath)) output$issue <- c(output$issue, "NAs_final_gradient")
-          if(all(is.null(opt_save)==FALSE) & is.null(modpath)==FALSE & all(is.na(opt_save[["final_gradient"]]))==FALSE) if(max(abs(opt_save[["final_gradient"]]))>0.01) write(opt_save[["final_gradient"]], file.path(iterpath, "high_final_gradient.txt"))
-          if(all(is.null(opt_save)==FALSE & is.null(modpath)) & all(is.na(opt_save[["final_gradient"]]))==FALSE) if(max(abs(opt_save[["final_gradient"]]))>0.01) output$issue <- c(output$issue, "high_final_gradient")
-          if(all(is.null(opt_save)==FALSE) & is.null(modpath)==FALSE & all(is.na(opt_save[["final_gradient"]]))) write("model_NA", file.path(iterpath, "model_NA.txt"))
-          if(all(is.null(opt_save)==FALSE & is.null(modpath))) output$issue <- c(output$issue, "model_NA")
-
+          if(all(is.null(opt_save)==FALSE)){
+            if(all(is.na(opt_save[["final_gradient"]]))==FALSE){
+              if(max(abs(opt_save[["final_gradient"]]))>0.001){
+                if(is.null(modpath)==FALSE) write(opt_save[["final_gradient"]], file.path(iterpath, "high_final_gradient.txt"))
+                }
+              if(is.null(modpath)) output$issue <- c(output$issue, "high_final_gradient")
+              }
+          }
           if(all(is.na(opt_save)) & is.null(modpath)==FALSE) write("model_NA", file.path(iterpath, "model_NA.txt"))
           if(all(is.na(opt_save)) & is.null(modpath)) output$issue <- c(output$issue, "model_NA")
         
@@ -262,7 +274,9 @@ for(iter in 1:length(itervec)){
 
       ## can calculate derived quants later if you want
       if(is.null(modpath)==FALSE) saveRDS(obj_save, file.path(iterpath, "TMB_obj.rds"))
+      if(is.null(modpath)==FALSE) saveRDS(opt_save, file.path(iterpath, "TMB_opt.rds"))
       if(is.null(modpath)) output$obj <- obj_save
+      if(is.null(modpath)) output$opt <- opt_save
 
       if(derive_quants==TRUE){
           Derived = calc_derived_quants( Obj=obj_save )

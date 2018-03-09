@@ -5,11 +5,11 @@
 \title{run LIME model - simulation mode}
 \usage{
 run_LIME(modpath, lh, input_data, est_sigma, data_avail, itervec = NULL,
-  rewrite = TRUE, simulation = TRUE, param_adjust = FALSE,
+  rewrite = TRUE, simulation = FALSE, param_adjust = FALSE,
   val_adjust = FALSE, f_true = FALSE, fix_param = FALSE,
-  fix_param_t = FALSE, C_opt = 0, F_up = 10, LFdist = 0,
-  derive_quants = FALSE, S_l_input = -1, theta_type = 1, randomR = TRUE,
-  Fpen = 1, SigRpen = 1)
+  fix_param_t = FALSE, C_opt = 0, F_up = 10, S50_up = NULL,
+  LFdist = 1, derive_quants = FALSE, S_l_input = -1, theta_type = 1,
+  randomR = TRUE, Fpen = 1, SigRpen = 1, newtonsteps = 3)
 }
 \arguments{
 \item{modpath}{model directory}
@@ -20,7 +20,7 @@ run_LIME(modpath, lh, input_data, est_sigma, data_avail, itervec = NULL,
 
 \item{est_sigma}{list of variance parameters to estimate, must match parameter names: log_sigma_R, log_sigma_C, log_sigma_I, log_CV_L, log_sigma_F}
 
-\item{data_avail}{types of data included, must at least include LCX where X is the number of years of length composition data. May also include Catch or Index separated by underscore. For example, LC10, Catch_LC1, Index_Catch_LC20.}
+\item{data_avail}{types of data included, must at least include LC as length composition data is the minimum data input. May also include Catch or Index separated by underscore. For example, LC, Catch_LC, Index_Catch_LC.}
 
 \item{itervec}{number of datasets to generate in a simulation study. default=NULL for real stock assessment application.}
 
@@ -42,19 +42,23 @@ run_LIME(modpath, lh, input_data, est_sigma, data_avail, itervec = NULL,
 
 \item{F_up}{upper bound of fishing mortality estimate; default=5}
 
+\item{S50_up}{upper bound of length at 50 percent selectivity; default=NULL}
+
 \item{LFdist}{likelihood distribution for length composition data, default=0 for multinomial, alternate=1 for dirichlet-multinomial}
 
 \item{derive_quants}{default=FALSE (takes longer to run), can set to TRUE to output additional derived quantities.}
 
-\item{S_l_input}{default=-1, use 1-parameter logistic selectivity function; alternatively can input fixed selectivity-at-length}
+\item{S_l_input}{default=-1, use 1 or 2--parameter logistic selectivity function; alternatively can input fixed selectivity-at-length}
 
-\item{theta_type}{if 0, estimate annual theta; if 1, estimate single theta for all years of length comp}
+\item{theta_type}{default=1, estimate single theta for all years of length comp; if 0, estimate annual theta}
 
 \item{randomR}{default = TRUE, estimate recruitment as a random effect; if FALSE, turn off random effect on recruitment (do not derive deviations)}
 
 \item{Fpen}{penalty on fishing mortality; 0=OFF, 1=ON, default=1}
 
 \item{SigRpen}{penalty on sigmaR; 0=OFF, 1=ON, default=1}
+
+\item{newtonsteps}{number of extra newton steps to take after optimization; FALSE to turn off}
 }
 \value{
 prints how many iterations were run in model directory
@@ -62,3 +66,7 @@ prints how many iterations were run in model directory
 \description{
 \code{run_LIME} run length-based integrated mixed-effects model with generated data
 }
+\author{
+M.B. Rudd
+}
+

@@ -11,7 +11,8 @@
 //   2) annual F as fixed effect
 //   3) annual R as random effect 
 
-# include <TMB.hpp>
+#define TMB_LIB_INIT R_init_LIME
+#include <TMB.hpp>
 
 // dlnorm
 template<class Type>
@@ -50,7 +51,7 @@ Type objective_function<Type>::operator() ()
     DATA_INTEGER(theta_type); //0= annual theta, 1=single theta
     DATA_VECTOR(lbhighs); // upper length bins
     DATA_VECTOR(lbmids);
-    DATA_INTEGER(binwidth);
+    // DATA_INTEGER(binwidth);
 
     // Known values
     DATA_INTEGER(n_a);
@@ -112,11 +113,13 @@ Type objective_function<Type>::operator() ()
   Type S50 = exp(logS50);
   Type Sdelta = exp(logSdelta);
   Type S95 = S50 + Sdelta;
-  int amax;
-  amax = n_a/n_s;
+  // int amax;
+  // amax = n_a/n_s;
+
+  //Indices == l= year of length comp data or length bin, y=total years, t=total time step, a=age, ml=mean length year, c=catch year, i=index year
+  // int l,y,t,a,ml,c,i;
 
   vector<Type> theta(n_lc);
-  int l;
   if(theta_type==0){
     for(int l=0;l<n_lc;l++){
       theta(l) = exp(log_theta(l));
@@ -134,8 +137,6 @@ Type objective_function<Type>::operator() ()
   vector<Type> F_y(n_y); //number of years
   Type F_equil;
   F_equil = exp(log_F_t_input(0));
-  int t;
-  int y;
   int tmp; 
   for(int y=0;y<n_y;y++){
     F_y(y) = exp(log_F_t_input(y));
@@ -234,7 +235,7 @@ Type objective_function<Type>::operator() ()
   for(int a=0;a<n_a;a++){
     // Population abundance
     if(a==0) N_ta(0,a) = R_t(0);
-    if(a>=1 & a<(n_a-1)) N_ta(0,a) = N_ta(0,a-1) * exp(-M - F_t(0) * S_a(a-1));
+    if((a>=1) & (a<(n_a-1))) N_ta(0,a) = N_ta(0,a-1) * exp(-M - F_t(0) * S_a(a-1));
     if(a==(n_a-1)) N_ta(0,a) = (N_ta(0,a-1) * exp(-M - F_t(0) * S_a(a))) / (1 - exp(-M - F_t(0) * S_a(a)));
 
     // Spawning biomass
@@ -263,9 +264,9 @@ Type objective_function<Type>::operator() ()
     for(int a=0;a<n_a;a++){
       
       // Population abundance
-      if(t>=1 & a==0) N_ta(t,a) = R_t(t);
-      if(t>=1 & a>=1 & a<(n_a-1)) N_ta(t,a) = N_ta(t-1,a-1) * exp(-M - F_t(t-1) * S_a(a-1));
-      if(t>=1 & a==(n_a-1)) N_ta(t,a) = (N_ta(t-1,a-1) * exp(-M - F_t(t-1) * S_a(a-1))) + (N_ta(t-1,a) * exp(-M - F_t(t-1) * S_a(a)));
+      if((t>=1) & (a==0)) N_ta(t,a) = R_t(t);
+      if((t>=1) & (a>=1) & (a<(n_a-1))) N_ta(t,a) = N_ta(t-1,a-1) * exp(-M - F_t(t-1) * S_a(a-1));
+      if((t>=1) & (a==(n_a-1))) N_ta(t,a) = (N_ta(t-1,a-1) * exp(-M - F_t(t-1) * S_a(a-1))) + (N_ta(t-1,a) * exp(-M - F_t(t-1) * S_a(a)));
 
       // Spawning biomass
       SB_ta(t,a) = N_ta(t,a)*Mat_a(a)*W_a(a);
@@ -350,7 +351,7 @@ Type objective_function<Type>::operator() ()
         Na0(t,a) = 1;
         Naf(t,a) = 1;
       }
-      if(a>0 & a<(n_a-1)){
+      if((a>0) & (a<(n_a-1))){
         Na0(t,a) = Na0(t,a-1)*exp(-M);
         Naf(t,a) = Naf(t,a-1)*exp(-M-S_a(a-1)*F_t(t));
       }
@@ -381,7 +382,7 @@ Type objective_function<Type>::operator() ()
     vector<Type> sum2(n_lc);
     sum1.setZero();
     sum2.setZero();
-  int lc;
+  // int lc;
   if(n_lc>0){
     for(int t=0;t<n_t;t++){
       log_pL_t(t) = 0;
@@ -452,7 +453,7 @@ Type objective_function<Type>::operator() ()
 
   vector<Type> log_pML_t(n_t);
   log_pML_t.setZero();
-  int ml;
+  // int ml;
   if(n_ml>0){
     for(int t=0;t<n_t;t++){
       log_pML_t(t) = 0;
@@ -485,7 +486,7 @@ Type objective_function<Type>::operator() ()
        R_t_hat(t) = R_t(t);
        SB_t_hat(t) = SB_t(t);
        TB_t_hat(t) = TB_t(t);
-       D_t(t) = SB_t_hat(t)/SB_t_hat(0);
+       D_t(t) = SB_t_hat(t)/SB0;
     }
 
     vector<Type> lN_t(n_t);
@@ -496,19 +497,21 @@ Type objective_function<Type>::operator() ()
     vector<Type> lC_t(n_t);
     vector<Type> lI_t(n_t);
     vector<Type> lD_t(n_t);
-    for(t=0;t<n_t;t++){
+    for(int t=0;t<n_t;t++){
       lN_t(t) = log(N_t_hat(t));
       lSB_t(t) = log(SB_t_hat(t));
       lTB_t(t) = log(TB_t_hat(t));
       lR_t(t) = log(R_t_hat(t));
       lF_t(t) = log(F_t(t));
-      lC_t(t) = log(C_t_hat(t));
+      if(C_opt==0) lC_t(t) = log(Cw_t_hat(t));
+      if(C_opt==1) lC_t(t) = log(C_t_hat(t));
+      if(C_opt==2) lC_t(t) = log(Cw_t_hat(t));
       lI_t(t) = log(I_t_hat(t));
       lD_t(t) = log(D_t(t));
     }
 
     vector<Type> lF_y(n_y);
-    for(t=0;t<n_y;t++){
+    for(int t=0;t<n_y;t++){
       lF_y(t) = log(F_y(t));
     }
 

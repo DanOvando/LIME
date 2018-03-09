@@ -1,18 +1,24 @@
 Package: LIME
 Title: Length-based Integrated Mixed Effects (LIME) assessment method
-Version: 0.1
+Version: 1.0.7
 Authors@R: person("Merrill", "Rudd", email="merrillrudd@gmail.com", role=c("aut","cre"))
 Description: A flexible stock assessment method for fisheries with developing
-    data collection programs. Requires at least one year of length composition data and assumptions about biological parameters. Can integrate more years of length composition data, a time series of catch, and/or
-    an abundance index. Mixed effects structure accounts for time-variation in
-    fishing mortality and recruitment.
-License: GPL-2
+    data collection programs. Requires at least one year of length composition
+    data and assumptions about biological parameters. Can integrate more years of
+    length composition data, a time series of catch, and/or an abundance index.
+    Mixed effects structure accounts for time-variation in fishing mortality and
+    recruitment.
+URL: https://github.com/merrillrudd/LIME
+BugReports: https://github.com/merrillrudd/LIME/issues
+License: MIT + file LICENSE
 Depends:
     TMB,
-    devtools,
-    Rcpp,
-    RcppEigen
-LinkingTo: TMB, RcppEigen, Rcpp
-RoxygenNote: 6.0.1
+    TMBhelper
+LinkingTo: TMB, RcppEigen
+RoxygenNote: 5.0.1
 LazyData: true
-Suggests: testthat
+Suggests:
+    testthat,
+    knitr,
+    rmarkdown
+VignetteBuilder: knitr

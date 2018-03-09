@@ -4,18 +4,16 @@
 \alias{generate_data}
 \title{Generate data for simulation testing}
 \usage{
-generate_data(modpath, data_avail, itervec, Fdynamics, Rdynamics, lh,
-  pool = TRUE, write = TRUE, Nyears, comp_sample, rewrite = TRUE,
-  mismatch = FALSE, init_depl, derive_quants = FALSE)
+generate_data(modpath, itervec, Fdynamics, Rdynamics, lh, pool = TRUE, Nyears,
+  Nyears_comp, comp_sample, rewrite = TRUE, mismatch = FALSE, init_depl,
+  derive_quants = FALSE, nburn = 50, seed, mgt_type = "F")
 }
 \arguments{
 \item{modpath}{directory to save generated data}
 
-\item{data_avail}{types of data included, must at least include LCX where X is the number of years of length composition data. May also include Catch or Index separated by underscore. For example, LC10, Catch_LC1, Index_Catch_LC20.}
-
 \item{itervec}{number of iterations of data to generate}
 
-\item{Fdynamics}{Specify name of pattern of fishing mortality dynamics, Constant, Endogenous, Ramp, Increasing, or None}
+\item{Fdynamics}{Specify name of pattern of fishing mortality dynamics, Constant, Endogenous, Ramp, Increasing, or None. Input number to project forward using a specific F.}
 
 \item{Rdynamics}{Specify name of pattern of recruitment dynamics, Constant, Pulsed, Pulsed_up, or BH}
 
@@ -23,11 +21,11 @@ generate_data(modpath, data_avail, itervec, Fdynamics, Rdynamics, lh,
 
 \item{pool}{if nseasons (in life history list) is greater than one, pool the generated data into annual time steps, or leave at the season-level? default=TRUE, FALSE will generate shorter time step life history info, mean length}
 
-\item{write}{write generated dataset? default=TRUE. FALSE helpful for plotting.}
-
 \item{Nyears}{number of years to simulate}
 
-\item{comp_sample}{vector with sample sizes of length composition data each year}
+\item{Nyears_comp}{number of years to generate length composition data}
+
+\item{comp_sample}{sample size of length composition data each year}
 
 \item{rewrite}{TRUE will re-run OM and observation model. FALSE will skip if it's already written in directory.}
 
@@ -36,6 +34,12 @@ generate_data(modpath, data_avail, itervec, Fdynamics, Rdynamics, lh,
 \item{init_depl}{default=0.4, can specify a different value or 2 values that indicate range from which to choose them}
 
 \item{derive_quants}{default=FALSE (takes longer to run), can set to TRUE to output additional derived quantities.}
+
+\item{nburn}{number of years burn-in for operating model, default=50}
+
+\item{seed}{single seed or vector of seeds for each iteration}
+
+\item{mgt_type}{removals based on F (default) or catch}
 }
 \value{
 print how many iterations were written into the model directory
@@ -43,3 +47,7 @@ print how many iterations were written into the model directory
 \description{
 \code{generate_data} Generates data from the operating model for use in simulation testing
 }
+\author{
+M.B. Rudd
+}
+
