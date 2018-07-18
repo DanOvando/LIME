@@ -1,9 +1,10 @@
-#' Age-converted-to-length structure
+#' Age-converted-to-length structure for compositional data
 #'
 #' \code{AgeToLengthComp} Converts vulnerable numbers at age to length composition of catch
 #' @author M.B. Rudd
 
 #' @param lh list of life history attributes, output of create_lh_list
+#' @param S_a flexiblity to set selectivity-at-age by fleet
 #' @param tyears number of years of data
 #' @param N_at matrix of numbers in the population at each age over time
 #' @param comp_sample vector of number of individuals sampled each year (set as 1 for proportions)
@@ -14,19 +15,20 @@
 #' @export
 AgeToLengthComp <-
   function(lh,
+           S_a,
            tyears,
            N_at,
            comp_sample,
            sample_type = 'catch') {
-    with(lh, {
+    # with(lh, {
       ################################################
       ## Probability being in a length bin given age
       ################################################
       lbprobs <-
         function(mnl, sdl)
-          return(pnorm(highs, mnl, sdl) - pnorm(lows, mnl, sdl))
+          return(pnorm(lh$highs, mnl, sdl) - pnorm(lh$lows, mnl, sdl))
       vlprobs <- Vectorize(lbprobs, vectorize.args = c("mnl", "sdl"))
-      plba <- t(vlprobs(L_a, L_a * CVlen))
+      plba <- t(vlprobs(lh$L_a, lh$L_a * lh$CVlen))
       plba <- plba / rowSums(plba)
 
       ################################################
@@ -42,7 +44,7 @@ AgeToLengthComp <-
       ################################################
       ## Probability of sampling a given length bin
       ################################################
-      plb <- matrix(ncol = length(highs), nrow = tyears)
+      plb <- matrix(ncol = length(lh$highs), nrow = tyears)
       for (y in 1:tyears)
         plb[y, ] <- page[y, ] %*% plba
       plb <- plb / rowSums(plb)
@@ -69,7 +71,7 @@ AgeToLengthComp <-
       Outs$page <- page
       Outs$LF <- LF
       return(Outs)
-    })
+    # })
 
 
   }
