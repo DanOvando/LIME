@@ -15,7 +15,7 @@
 #' @return List, a tagged list of potentially useful benchmarks
 #' @details Use this function with uniroot to find the value of F that results in SPR matching the specified reference value (e.g. 0.30 to find F30)
 #' @export
-calc_ref <- function(ages, Mat_a, W_a, M, F, S_fa, ref=FALSE, type="SPR"){
+calc_ref <- function(ages, Mat_a, W_a, M, F, S_fa, ref=FALSE, type="SBPR"){
 
     ## calculate spawning biomass per recruit in fished and unfished condition
     ## a function of specified level of fishing mortality and ability to estimate selectivity parameters
@@ -23,9 +23,13 @@ calc_ref <- function(ages, Mat_a, W_a, M, F, S_fa, ref=FALSE, type="SPR"){
     Naf <- calc_equil_abund(ages=ages, M=M, F=F, S_fa=S_fa, R0=1)
 
         ## ignore recruits
-    if(type=="SPR"){
+    if(type=="SBPR"){
         Nofish <- sum(Na0*Mat_a*W_a)
         Fish <- sum(Naf*Mat_a*W_a)
+    }
+    if(type=="SPR"){
+        NoFish <- sum(Na0*Mat_a*W_a*Mat_a*W_a)
+        Fish <- sum(Naf*Mat_a*W_a*Mat_a*W_a)
     }
     if(type=="Biomass" | type=="biomass"){
         Nofish <- sum(Na0*W_a)

@@ -325,10 +325,10 @@ sim_pop <-
             W_a = W_a,
             M = M,
             S_fa = S_fa,
-            F = F_t[x]
+            F = F_t[x],
+            type="SBPR"
           ))
       SPR <- SPR_t[length(SPR_t)]
-
 
       Cn_ft <- t(sapply(1:nfleets, function(x) colSums(Cn_atf[,,x])))
       Cw_ft <- t(sapply(1:nfleets, function(x) colSums(Cn_atf[,,x] * W_a)))
