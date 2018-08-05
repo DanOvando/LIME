@@ -27,3 +27,4 @@
 *.knit.md
 .Rproj.user
 inst/doc
+*.Rproj
